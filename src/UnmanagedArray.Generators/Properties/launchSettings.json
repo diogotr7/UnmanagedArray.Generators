@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Generator": {
+      "commandName": "DebugRoslynComponent",
+      "targetProject": "..\\UnmanagedArray.ConsoleApp\\UnmanagedArray.ConsoleApp.csproj"
+    }
+  }
+}
