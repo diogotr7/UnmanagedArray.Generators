@@ -6,6 +6,7 @@
         <IsRoslynComponent>true</IsRoslynComponent>
         <Nullable>enable</Nullable>
         <Authors>diogotr7</Authors>
+        <Version>1.1.0</Version>
         <Description>Source generator for unmanaged arrays</Description>
         <Copyright>Copyright (c) 2023 Diogo Trindade</Copyright>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>

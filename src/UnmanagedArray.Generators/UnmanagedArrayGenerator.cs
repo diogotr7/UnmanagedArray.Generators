@@ -18,24 +18,6 @@ namespace UnmanagedArray.Generators;
 [Generator]
 public class UnmanagedArrayGenerator : IIncrementalGenerator
 {
-    //Example:
-    //[UnmanagedArray(typeof(ChildTestStruct), 2)]
-    //public readonly partial record struct TestStruct;
-
-    //Generates:
-    //public readonly partial record struct TestStruct
-    //{
-    //    public ChildTestStruct Child0;
-    //    public ChildTestStruct Child1;
-    //
-    //    public ChildTestStruct this[int index] => index switch
-    //    {
-    //        0 => Child0,
-    //        1 => Child1,
-    //        _ => throw new IndexOutOfRangeException()
-    //    };
-    //}
-
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         var input = context.SyntaxProvider.CreateSyntaxProvider(IsAttributePresent, GetStructInfo);
@@ -127,6 +109,16 @@ public class UnmanagedArrayGenerator : IIncrementalGenerator
             ), structAttribute.GetLocation());
 
         var childType = context.SemanticModel.GetTypeInfo((structParameters[0].Expression as TypeOfExpressionSyntax)!.Type);
+        if (childType.Type is null || !childType.Type.IsUnmanagedType)
+            return Diagnostic.Create(new DiagnosticDescriptor(
+                "UA005",
+                "UnmanagedArrayAttribute must have an unmanaged type as the first parameter",
+                "UnmanagedArrayAttribute must have an unmanaged type as the first parameter",
+                "RazerSdkReader.Generators",
+                DiagnosticSeverity.Error,
+                true
+            ), structAttribute.GetLocation());
+        
         var childCountExpression = context.SemanticModel.GetConstantValue(structParameters[1].Expression);
         if (childCountExpression.Value is not int childCount)
             return Diagnostic.Create(new DiagnosticDescriptor(
@@ -142,9 +134,9 @@ public class UnmanagedArrayGenerator : IIncrementalGenerator
                                                                    SymbolDisplayMiscellaneousOptions.UseSpecialTypes);
         return new StructInfo
         {
-            Namespace = parentType!.ContainingNamespace.ToString(),
-            ParentStruct = parentType!.ToDisplayString(format),
-            ChildStruct = childType!.Type!.ToDisplayString(format),
+            Namespace = parentType.ContainingNamespace.ToString(),
+            ParentStruct = parentType.ToDisplayString(format),
+            ChildStruct = childType.Type.ToDisplayString(format),
             Count = childCount,
             IsRecordStruct = isRecordStruct.Value,
             IsReadOnly = parentType.IsReadOnly
@@ -161,6 +153,7 @@ public class UnmanagedArrayGenerator : IIncrementalGenerator
         sb.AppendLine("using System.Collections;");
         sb.AppendLine("using System.Collections.Generic;");
         sb.AppendLine("using System.Runtime.InteropServices;");
+        sb.AppendLine("using System.Runtime.CompilerServices;");
         sb.AppendLine();
         sb.AppendLine($"namespace {structInfo.Namespace};");
         sb.AppendLine();
@@ -169,26 +162,22 @@ public class UnmanagedArrayGenerator : IIncrementalGenerator
         var readonlyModifier = structInfo.IsReadOnly ? " readonly" : "";
         sb.AppendLine($"public{readonlyModifier} partial {type} {structInfo.ParentStruct}");
         sb.AppendLine("{");
-
+        
         var digits = structInfo.Count.ToString(CultureInfo.InvariantCulture).Length;
-        var format = "D" + digits;
         for (int i = 0; i < structInfo.Count; i++)
         {
-            sb.AppendLine($"    public{readonlyModifier} {structInfo.ChildStruct} Child{i.ToString(format)};");
+            sb.AppendLine($"    public{readonlyModifier} {structInfo.ChildStruct} {GetChildName(i, digits)};");
         }
-
         sb.AppendLine();
-        sb.AppendLine($"    public {structInfo.ChildStruct} this[int index] => index switch");
-        sb.AppendLine("    {");
-        for (int i = 0; i < structInfo.Count; i++)
-        {
-            sb.AppendLine($"        {i} => Child{i.ToString(format)},");
-        }
-
-        sb.AppendLine($"        _ => throw new IndexOutOfRangeException()");
-        sb.AppendLine("    };");
+        sb.AppendLine($"    public int Length => {structInfo.Count};");
+        sb.AppendLine();
+        sb.AppendLine($"    public Span<{structInfo.ChildStruct}> AsSpan() => MemoryMarshal.CreateSpan(ref Unsafe.AsRef({GetChildName(0, digits)}), {structInfo.Count});");
+        sb.AppendLine();
+        sb.AppendLine($"    public static implicit operator Span<{structInfo.ChildStruct}>({structInfo.ParentStruct} {structInfo.ParentStruct.ToLowerInvariant()}) => {structInfo.ParentStruct.ToLowerInvariant()}.AsSpan();");
         sb.AppendLine("}");
 
         return sb.ToString();
+
+        static string GetChildName(int index, int digits) => $"Child{index.ToString("D" + digits)}";
     }
 }
