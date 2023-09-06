@@ -51,9 +51,9 @@ public class UnmanagedArrayGenerator : IIncrementalGenerator
 
         // "attribute.Parent" is "AttributeListSyntax"
         // "attribute.Parent.Parent" is a C# fragment the attributes are applied to
-        var syntax = structAttribute.Parent?.Parent;
+        var parentSyntax = structAttribute.Parent?.Parent;
 
-        if (syntax is not TypeDeclarationSyntax tds)
+        if (parentSyntax is not TypeDeclarationSyntax tds)
         {
             return Diagnostic.Create(new DiagnosticDescriptor(
                 "UA001",
@@ -62,7 +62,7 @@ public class UnmanagedArrayGenerator : IIncrementalGenerator
                 "RazerSdkReader.Generators",
                 DiagnosticSeverity.Error,
                 true
-            ), syntax?.GetLocation());
+            ), parentSyntax?.GetLocation());
         }
 
         bool? isRecordStruct = tds switch
@@ -81,7 +81,7 @@ public class UnmanagedArrayGenerator : IIncrementalGenerator
                 "RazerSdkReader.Generators",
                 DiagnosticSeverity.Error,
                 true
-            ), syntax?.GetLocation());
+            ), parentSyntax.GetLocation());
 
         var parentType = context.SemanticModel.GetDeclaredSymbol(tds)!;
 
@@ -95,7 +95,7 @@ public class UnmanagedArrayGenerator : IIncrementalGenerator
                 "RazerSdkReader.Generators",
                 DiagnosticSeverity.Error,
                 true
-            ), syntax?.GetLocation());
+            ), parentSyntax.GetLocation());
 
         var structParameters = structAttribute.ArgumentList!.Arguments;
         if (structParameters.Count != 2)
@@ -117,21 +117,23 @@ public class UnmanagedArrayGenerator : IIncrementalGenerator
                 "RazerSdkReader.Generators",
                 DiagnosticSeverity.Error,
                 true
-            ), structAttribute.GetLocation());
+            ), structParameters[0].GetLocation());
         
         var childCountExpression = context.SemanticModel.GetConstantValue(structParameters[1].Expression);
-        if (childCountExpression.Value is not int childCount)
+        if (childCountExpression.Value is not (int childCount and > 0))
             return Diagnostic.Create(new DiagnosticDescriptor(
                 "UA004",
-                "UnmanagedArrayAttribute must have a constant integer as the second parameter",
-                "UnmanagedArrayAttribute must have a constant integer as the second parameter",
+                "UnmanagedArrayAttribute must have a constant positive integer as the second parameter",
+                "UnmanagedArrayAttribute must have a constant positive integer as the second parameter",
                 "RazerSdkReader.Generators",
                 DiagnosticSeverity.Error,
                 true
-            ), structAttribute.GetLocation());
+            ), structParameters[1].GetLocation());
 
-        var format = new SymbolDisplayFormat(miscellaneousOptions: SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers |
-                                                                   SymbolDisplayMiscellaneousOptions.UseSpecialTypes);
+        var format = new SymbolDisplayFormat(
+            miscellaneousOptions: SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers | SymbolDisplayMiscellaneousOptions.UseSpecialTypes,
+            genericsOptions: SymbolDisplayGenericsOptions.IncludeTypeParameters);
+        
         return new StructInfo
         {
             Namespace = parentType.ContainingNamespace.ToString(),

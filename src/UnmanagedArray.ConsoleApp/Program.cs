@@ -8,21 +8,23 @@ public static class Program
 {
     public static void Main()
     {
-        var sizeOf = Unsafe.SizeOf<TestStruct>();
-        var expectedSize = 10 * Unsafe.SizeOf<int>();
-        if (sizeOf != expectedSize)
-            throw new Exception($"Expected size of {expectedSize}, got {sizeOf}");
-        
         var str = new TestStruct();
-        var i = 0;
-        foreach (ref var item in str.AsSpan())
-        {
-            item = i++;
-        }
-        
-        Console.WriteLine(str);
+        var span = str.AsSpan();
+        var size = Unsafe.SizeOf<TestStruct>();
+        Console.WriteLine($"Size of TestStruct: {size}");
+        Console.WriteLine($"TestStruct has {span.Length} elements");
     }
 }
 
-[UnmanagedArray(typeof(int), 10)]
-public readonly partial record struct TestStruct;
+[UnmanagedArray(typeof(Vector<int>), 10)]
+public readonly partial struct TestStruct
+{
+}
+
+[StructLayout(LayoutKind.Sequential)]
+public readonly struct Vector<T> where T : unmanaged
+{
+    public readonly T x;
+    public readonly T y;
+    public readonly T z;
+}
